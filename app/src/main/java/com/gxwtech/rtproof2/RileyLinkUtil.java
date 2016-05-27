@@ -15,8 +15,6 @@ public class RileyLinkUtil {
      The 6 bit codes are what is used on the RF side of the RileyLink
      to communicate with a Medtronic pump.
 
-     The RileyLink translates the 6 bit codes into bytes when receiving,
-     but we have to construct the 6 bit codes when sending.
      */
     public static byte[] CodeSymbols = {
             0x15,
@@ -51,52 +49,6 @@ public class RileyLinkUtil {
         rval[input.length] = mycrc;
         return rval;
     }
-
-    public static byte[] composeRFStream(byte[] input) {
-        /*
-         0xa7 -> (0xa -> 0x2a == 101010) + (0x7 -> 0x16 == 010110) == 1010 1001 0110 = 0xa96
-         0x12 -> (0x1 -> 0x31 == 110001) + (0x2 -> 0x32 == 110010) == 1100 0111 0010 = 0xc72
-
-         so:
-         {0xa7} -> {0xa9, 0x60}
-         {0xa7, 0x12} -> {0xa9, 0x6c, 0x72}
-         {0xa7, 0x12, 0xa7} -> {0xa9, 0x6c, 0x72, 0xa9, 0x60}
-
-         */
-        byte[] rval = null;
-        if (input == null) return rval;
-        if (input.length == 0) return rval;
-        int outSize = (int)(Math.ceil((input.length * 3.0) / 2.0));
-        rval = new byte[outSize+1];
-        for (int i=0; i< input.length; i++) {
-            int rfBytes = composeRFBytes(input[i]);
-            int outIndex = ((i/2) * 3) + (i%2);
-            // outIndex: 0->0, 1->1, 2->3, 3->4, 4->6, 5->7, 6->9, 7->10
-            if ((i % 2)==0) {
-                rval[outIndex] = (byte)(rfBytes >> 8);
-                rval[outIndex+1] = (byte)(rfBytes & 0xF0);
-            } else {
-                rval[outIndex] = (byte)((rval[outIndex] & 0xF0) | ((rfBytes >> 12) & 0x0F));
-                rval[outIndex+1] = (byte)(rfBytes >> 4);
-            }
-        }
-        rval[outSize] = 0;
-        //rval[outSize+1] = 0;
-
-        /* check that the other algorithm matches */
-        Log.v(TAG, "ComposeRFStream: input is " + RileyLinkUtil.toHexString(input));
-        Log.v(TAG, "ComposeRFStream: output is " + RileyLinkUtil.toHexString(rval));
-        byte[] checkEm = encodeData(input);
-
-        /* these asserts failed.  Why? */
-        assert checkEm.length == rval.length;
-        for (int i=0; i< checkEm.length; i++) {
-            assert checkEm[i] == rval[i];
-        }
-
-        return rval;
-    }
-
 
     // return a 12 bit binary number representing outgoing RF code for byte
     // 0xa7 -> (0xa -> 0x2a == 101010) + (0x7 -> 0x16 == 010110) == 1010 1001 0110 = 0xa96
@@ -241,17 +193,6 @@ public class RileyLinkUtil {
 
     }
 
-    //public static byte[] composeRFBitstream(byte[] data) {
-    //}
-/*
-    public static void testCompose(byte[] instream) {
-        if (instream == null) return;
-        if (instream.length == 0) return;
-        int outval = composeRFBytes((byte)0xa7);
-        Log.i(TAG, "testCompose: input is " + toHexString(instream) +
-                ", output is " + toHexString(outstream));
-    }
-*/
     public static void test() {
         /*
         {0xa7} -> {0xa9, 0x60}
