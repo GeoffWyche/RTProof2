@@ -55,7 +55,7 @@ public class BLEComm {
             public void onCharacteristicChanged(final BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
                 super.onCharacteristicChanged(gatt, characteristic);
 
-                Log.v(TAG, "onCharacteristicChanged " + GattAttributes.lookup(characteristic.getUuid()) + " " + HexDump.toHexString(characteristic.getValue()));
+                Log.v(TAG,ThreadUtil.sig()+"onCharacteristicChanged " + GattAttributes.lookup(characteristic.getUuid()) + " " + HexDump.toHexString(characteristic.getValue()));
                 if(characteristic.getUuid().equals(UUID.fromString(GattAttributes.CHARA_RADIO_RESPONSE_COUNT))) {
                     Log.d(TAG, "Response Count is "+HexDump.toHexString(characteristic.getValue()));
                 }
@@ -71,7 +71,7 @@ public class BLEComm {
 
                 final String statusMessage = getGattStatusMessage(status);
 
-                Log.v(TAG, "onCharacteristicRead (" + GattAttributes.lookup(characteristic.getUuid()) + ") "
+                Log.v(TAG,ThreadUtil.sig()+"onCharacteristicRead (" + GattAttributes.lookup(characteristic.getUuid()) + ") "
                         + statusMessage + ":" + HexDump.toHexString(characteristic.getValue()));
                 mCurrentOperation.gattOperationCompletionCallback(characteristic.getUuid(),characteristic.getValue());
             }
@@ -81,7 +81,7 @@ public class BLEComm {
                 super.onCharacteristicWrite(gatt, characteristic, status);
 
                 final String uuidString = GattAttributes.lookup(characteristic.getUuid());
-                Log.v(TAG, "onCharacteristicWrite " + getGattStatusMessage(status) + " " + uuidString + " " + HexDump.toHexString(characteristic.getValue()));
+                Log.v(TAG,ThreadUtil.sig()+"onCharacteristicWrite " + getGattStatusMessage(status) + " " + uuidString + " " + HexDump.toHexString(characteristic.getValue()));
                 mCurrentOperation.gattOperationCompletionCallback(characteristic.getUuid(),characteristic.getValue());
             }
 

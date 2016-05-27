@@ -23,6 +23,8 @@ public class RFSpyReader {
     private Semaphore waitForRadioData = new Semaphore(0,true);
     AsyncTask<Void,Void,Void> readerTask;
     private LinkedBlockingQueue<byte[]> mDataQueue = new LinkedBlockingQueue<>();
+    private int acquireCount = 0;
+    private int releaseCount = 0;
 
     public RFSpyReader(Context context, BLEComm bleComm) {
         this.context = context;
@@ -31,10 +33,18 @@ public class RFSpyReader {
 
     // This timeout must be coordinated with the length of the RFSpy radio operation or Bad Things Happen.
     public byte[] poll(int timeout_ms) {
+        Log.d(TAG,ThreadUtil.sig()+"Entering poll at t=="+SystemClock.uptimeMillis()+", timeout is "+timeout_ms+" mDataQueue size is "+mDataQueue.size());
+        if (mDataQueue.isEmpty())
         try {
             // block until timeout or data available.
             // returns null if timeout.
-            return mDataQueue.poll(timeout_ms, TimeUnit.MILLISECONDS);
+            byte[] dataFromQueue = mDataQueue.poll(timeout_ms, TimeUnit.MILLISECONDS);
+            if (dataFromQueue != null) {
+                Log.d(TAG, "Got data [" + ByteUtil.shortHexString(dataFromQueue) + "] at t==" + SystemClock.uptimeMillis());
+            } else {
+                Log.d(TAG, "Got data [null] at t==" + SystemClock.uptimeMillis());
+            }
+            return dataFromQueue;
         } catch (InterruptedException e) {
             Log.e(TAG,"poll: Interrupted waiting for data");
         }
@@ -43,6 +53,8 @@ public class RFSpyReader {
 
     // Call this from the "response count" notification handler.
     public void newDataIsAvailable() {
+        releaseCount++;
+        Log.w(TAG,ThreadUtil.sig()+"waitForRadioData released(count="+releaseCount+") at t="+SystemClock.uptimeMillis());
         waitForRadioData.release();
     }
 
@@ -55,9 +67,14 @@ public class RFSpyReader {
                 BLECommOperationResult result;
                 while (true) {
                     try {
+                        acquireCount++;
                         waitForRadioData.acquire();
+                        Log.w(TAG,ThreadUtil.sig()+"waitForRadioData acquired (count="+acquireCount+") at t="+SystemClock.uptimeMillis());
+                        SystemClock.sleep(100);
                         SystemClock.sleep(1);
                         result = bleComm.readCharacteristic_blocking(serviceUUID, radioDataUUID);
+                        SystemClock.sleep(100);
+
                         if (result.resultCode == BLECommOperationResult.RESULT_SUCCESS) {
                             mDataQueue.add(result.value);
                         } else if (result.resultCode == BLECommOperationResult.RESULT_INTERRUPTED) {

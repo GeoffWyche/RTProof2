@@ -1,6 +1,7 @@
 package com.gxwtech.rtproof2;
 
 import android.content.Context;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.gxwtech.rtproof2.BLECommOperations.BLECommOperation;
@@ -70,9 +71,20 @@ public class RFSpy {
 
     // The caller has to know how long the RFSpy will be busy with what was sent to it.
     private RFSpyResponse writeToData(byte[] bytes, int responseTimeout_ms) {
+        SystemClock.sleep(100);
+        // FIXME drain read queue?
+        byte[] junkInBuffer = reader.poll(0);
+
+        while (junkInBuffer != null) {
+            Log.w(TAG,ThreadUtil.sig()+"writeToData: draining read queue, found this: " + ByteUtil.shortHexString(junkInBuffer));
+            junkInBuffer = reader.poll(0);
+        }
+
         // prepend length, and send it.
         byte[] prepended = ByteUtil.concat(new byte[] {(byte)(bytes.length)},bytes);
         bleComm.writeCharacteristic_blocking(radioServiceUUID,radioDataUUID,prepended);
+        SystemClock.sleep(100);
+        Log.w(TAG,ThreadUtil.sig()+"writeToData: 'timeout' is " + (responseTimeout_ms + bluetoothLatency_ms));
         byte[] rawResponse = reader.poll(responseTimeout_ms + bluetoothLatency_ms);
         if (rawResponse == null) {
             Log.e(TAG,"No response from RileyLink");
@@ -81,10 +93,11 @@ public class RFSpy {
     }
 
     public RFSpyResponse getRadioVersion() {
-        RFSpyResponse resp = writeToData(new byte[] {RFSPY_GET_VERSION},0);
+        RFSpyResponse resp = writeToData(new byte[] {RFSPY_GET_VERSION},1000);
         if (resp == null) {
             Log.e(TAG,"getRadioVersion returned null");
         }
+        /*
         Log.d(TAG,"checking response count");
         BLECommOperationResult checkRC = bleComm.readCharacteristic_blocking(radioServiceUUID,responseCountUUID);
         if (checkRC.resultCode == BLECommOperationResult.RESULT_SUCCESS) {
@@ -92,22 +105,31 @@ public class RFSpy {
         } else {
             Log.e(TAG,"Error getting response count, code is " + checkRC.resultCode);
         }
+        */
         return resp;
     }
 
-    public void transmit(RadioPacket radioPacket, byte sendChannel, byte repeatCount, byte delay_ms) {
+    public RFSpyResponse transmit(RadioPacket radioPacket, byte sendChannel, byte repeatCount, byte delay_ms) {
         // append checksum, encode data, send it.
         byte[] fullPacket = ByteUtil.concat(new byte[] {RFSPY_SEND,sendChannel,repeatCount, delay_ms},radioPacket.getEncoded());
         RFSpyResponse response = writeToData(radioPacket.getEncoded(),repeatCount * delay_ms);
+        return response;
     }
 
-    public void receive(byte listenChannel, int timeout_ms, byte retryCount) {
-
+    public RFSpyResponse receive(byte listenChannel, int timeout_ms, byte retryCount) {
+        int receiveDelay = timeout_ms * (retryCount+1);
+        byte[] listen = {RFSPY_GET_PACKET,listenChannel,
+                (byte)((timeout_ms >> 24)&0x0FF),
+                (byte)((timeout_ms >> 16)&0x0FF),
+                (byte)((timeout_ms >> 8)&0x0FF),
+                (byte)(timeout_ms & 0x0FF),
+                retryCount};
+        return writeToData(listen,receiveDelay);
     }
 
     public RFSpyResponse transmitThenReceive(byte sendChannel, byte repeatCount, byte delay_ms, byte listenChannel, int timeout_ms, byte retryCount) {
         int sendDelay = repeatCount * delay_ms * 1; // let 1ms be base time to send a packet at all.
-        int receiveDelay = timeout_ms * retryCount;
+        int receiveDelay = timeout_ms * (retryCount + 1);
         byte[] sendAndListen = {RFSPY_SEND_AND_LISTEN,sendChannel,repeatCount,delay_ms,listenChannel,
                 (byte)((timeout_ms >> 24)&0x0FF),
                 (byte)((timeout_ms >> 16)&0x0FF),

@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -149,7 +150,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void testRileyLink() {
-
+/*
+        // This operation reads from the BLE113 version.
         BLECommOperationResult result =
                 bleComm.readCharacteristic_blocking(UUID.fromString(GattAttributes.SERVICE_RADIO),UUID.fromString(GattAttributes.CHARA_RADIO_VERSION));
         if (result.resultCode == BLECommOperationResult.RESULT_SUCCESS) {
@@ -158,10 +160,51 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG,"testRileyLink: error, result code is "+result.resultCode);
         }
 
-        // now test the data characteristic
+        // This operation reads from the CC1110 version
+        // It also tests that the write-radio/get notification/read-radio sequence is working.
         RFSpyResponse response = rfspy.getRadioVersion();
         Log.d(TAG,"getRadioVersion response was: " + ByteUtil.shortHexString(response.getRaw()));
+*/
+        //listenContinuously();
+        shoutForPump(0,1);
+        pressDownKey(0);
+        SystemClock.sleep(1000);
 
+        shoutForPump(1,1);
+        pressDownKey(1);
+        SystemClock.sleep(1000);
+
+        shoutForPump(2,1);
+        pressDownKey(2);
+    }
+
+    public void shoutForPump(int channel, int repeatCount) {
+        Log.w(TAG,String.format("ShoutForPump, channel %d, repeatCount %d",channel,repeatCount));
+        for (int i=0; i< repeatCount; i++) {
+            rfspy.transmit(new RadioPacket(new byte[]{(byte) 0xa7, 0x51, (byte) 0x81, 0x63, 0x5d, 0x00}), (byte) channel, (byte) 10, (byte) 0);
+            SystemClock.sleep(100);
+        }
+    }
+
+    public void pressDownKey(int channel) {
+        Log.w(TAG,String.format("pressDownKey, channel %d",channel));
+        rfspy.transmit(new RadioPacket(new byte[] {(byte)0xa7, 0x51, (byte)0x81, 0x63, 0x5b, 0x00}),(byte)channel,(byte)0,(byte)0);
+        SystemClock.sleep(100);
+    }
+
+    public void listenContinuously() {
+        while (true) {
+            RFSpyResponse response = rfspy.receive((byte) 0, 5000, (byte) 0);
+            if (response.getRaw() == null) {
+                Log.e(TAG,"listenContinuously: got null response");
+            } else {
+                Log.w(TAG,"listenContinuously: got response: " + ByteUtil.shortHexString(response.getRaw()));
+                if (response.getRaw()[0] == (byte)0xbb) {
+                    Log.e(TAG,"RileyLink interrupted, bailing.");
+                    break;
+                }
+            }
+        }
     }
 
 
