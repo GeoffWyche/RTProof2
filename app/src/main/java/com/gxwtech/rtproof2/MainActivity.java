@@ -35,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver mBroadcastReceiver;
 
     private BLEComm bleComm;
+    private RFSpy rfspy;
 
     private BluetoothDevice deviceFoundFromScan;
 
@@ -64,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         Log.d(TAG,"onReceive: action=" + action);
                         if (Constants.rileylink_ready.equals(intent.getAction())) {
+                            rfspy = new RFSpy(context,bleComm);
+                            rfspy.startReader();
                             testRileyLink();
                             /*
                         } else if (Constants.start_ble_scan.equals(intent.getAction())) {
@@ -146,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void testRileyLink() {
+
         BLECommOperationResult result =
                 bleComm.readCharacteristic_blocking(UUID.fromString(GattAttributes.SERVICE_RADIO),UUID.fromString(GattAttributes.CHARA_RADIO_VERSION));
         if (result.resultCode == BLECommOperationResult.RESULT_SUCCESS) {
@@ -153,6 +157,11 @@ public class MainActivity extends AppCompatActivity {
         } else {
             Log.e(TAG,"testRileyLink: error, result code is "+result.resultCode);
         }
+
+        // now test the data characteristic
+        RFSpyResponse response = rfspy.getRadioVersion();
+        Log.d(TAG,"getRadioVersion response was: " + ByteUtil.shortHexString(response.getRaw()));
+
     }
 
 

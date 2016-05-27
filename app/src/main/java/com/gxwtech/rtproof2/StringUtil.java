@@ -1,11 +1,16 @@
 package com.gxwtech.rtproof2;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 
 /**
  * Created by geoff on 4/28/15.
  */
 public class StringUtil {
+
+    public static String fromBytes(byte[] ra) {
+        return new String(ra, Charset.forName("UTF-8"));
+    }
 
     // these should go in some project-wide string utils package
     public static String join(ArrayList<String> ra, String joiner) {

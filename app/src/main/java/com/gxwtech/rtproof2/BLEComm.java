@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.Intent;
+import android.os.SystemClock;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -22,6 +23,7 @@ import com.gxwtech.rtproof2.BLECommOperations.DescriptorWriteOperation;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 
 /**
  * Created by geoff on 5/26/16.
@@ -38,6 +40,9 @@ public class BLEComm {
     private BluetoothGatt bluetoothConnectionGatt = null;
 
     private BLECommOperation mCurrentOperation;
+    private Semaphore gattOperationSema = new Semaphore(1,true);
+
+    private Runnable radioResponseCountNotified;
 
     public BLEComm() {
         this.context = MainActivity.getAppContext();
@@ -53,6 +58,9 @@ public class BLEComm {
                 Log.v(TAG, "onCharacteristicChanged " + GattAttributes.lookup(characteristic.getUuid()) + " " + HexDump.toHexString(characteristic.getValue()));
                 if(characteristic.getUuid().equals(UUID.fromString(GattAttributes.CHARA_RADIO_RESPONSE_COUNT))) {
                     Log.d(TAG, "Response Count is "+HexDump.toHexString(characteristic.getValue()));
+                }
+                if (radioResponseCountNotified != null) {
+                    radioResponseCountNotified.run();
                 }
             }
 
@@ -182,6 +190,10 @@ public class BLEComm {
         };
     }
 
+    public void registerRadioResponseCountNotification(Runnable notifier) {
+        radioResponseCountNotified = notifier;
+    }
+
     public void discoverServices() {
         if (bluetoothConnectionGatt.discoverServices()) {
             Log.w(TAG, "Starting to discover GATT Services.");
@@ -216,16 +228,26 @@ public class BLEComm {
 
     public BLECommOperationResult setNotification_blocking(UUID serviceUUID, UUID charaUUID) {
         BLECommOperationResult rval = new BLECommOperationResult();
+        try {
+            gattOperationSema.acquire();
+            SystemClock.sleep(1); // attempting to yield thread, to make sequence of events easier to follow
+        } catch (InterruptedException e) {
+            Log.e(TAG,"setNotification_blocking: interrupted waiting for gattOperationSema");
+            return rval;
+        }
         if (mCurrentOperation != null) {
             rval.resultCode = BLECommOperationResult.RESULT_BUSY;
         } else {
             BluetoothGattCharacteristic chara = bluetoothConnectionGatt.getService(serviceUUID).getCharacteristic(charaUUID);
+            // Tell Android that we want the notifications
+            bluetoothConnectionGatt.setCharacteristicNotification(chara, true);
             List<BluetoothGattDescriptor> list = chara.getDescriptors();
 
             for(int i=0; i<list.size(); i++) {
                 Log.d(TAG,"Found descriptor: "+list.get(i).toString());
             }
             BluetoothGattDescriptor descr = list.get(0);
+            // Tell the remote device to send the notifications
             mCurrentOperation = new DescriptorWriteOperation(bluetoothConnectionGatt,descr,BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
             mCurrentOperation.execute(this);
             if (mCurrentOperation.timedOut) {
@@ -237,6 +259,7 @@ public class BLEComm {
             }
         }
         mCurrentOperation = null;
+        gattOperationSema.release();
         return rval;
     }
 
@@ -244,6 +267,13 @@ public class BLEComm {
     public BLECommOperationResult writeCharacteristic_blocking(UUID serviceUUID, UUID charaUUID, byte[] value) {
         BLECommOperationResult rval = new BLECommOperationResult();
         rval.value = value;
+        try {
+            gattOperationSema.acquire();
+            SystemClock.sleep(1); // attempting to yield thread, to make sequence of events easier to follow
+        } catch (InterruptedException e) {
+            Log.e(TAG,"writeCharacteristic_blocking: interrupted waiting for gattOperationSema");
+            return rval;
+        }
         if (mCurrentOperation != null) {
             rval.resultCode = BLECommOperationResult.RESULT_BUSY;
         } else {
@@ -259,11 +289,19 @@ public class BLEComm {
             }
         }
         mCurrentOperation = null;
+        gattOperationSema.release();
         return rval;
     }
 
     public BLECommOperationResult readCharacteristic_blocking(UUID serviceUUID, UUID charaUUID) {
         BLECommOperationResult rval = new BLECommOperationResult();
+        try {
+            gattOperationSema.acquire();
+            SystemClock.sleep(1); // attempting to yield thread, to make sequence of events easier to follow
+        } catch (InterruptedException e) {
+            Log.e(TAG,"readCharacteristic_blocking: Interrupted waiting for gattOperationSema");
+            return rval;
+        }
         if (mCurrentOperation != null) {
             rval.resultCode = BLECommOperationResult.RESULT_BUSY;
         } else {
@@ -280,6 +318,7 @@ public class BLEComm {
             }
         }
         mCurrentOperation = null;
+        gattOperationSema.release();
         return rval;
     }
 
