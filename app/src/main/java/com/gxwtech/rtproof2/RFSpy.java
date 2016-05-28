@@ -22,7 +22,7 @@ public class RFSpy {
     public static final byte RFSPY_UPDATE_REGISTER = 6;
     public static final byte RFSPY_RESET = 7;
 
-    public static final int bluetoothLatency_ms = 22000;
+    public static final int bluetoothLatency_ms = 2000;
 
     private static final String TAG = "RFSpy";
     private BLEComm bleComm;
@@ -112,7 +112,7 @@ public class RFSpy {
     public RFSpyResponse transmit(RadioPacket radioPacket, byte sendChannel, byte repeatCount, byte delay_ms) {
         // append checksum, encode data, send it.
         byte[] fullPacket = ByteUtil.concat(new byte[] {RFSPY_SEND,sendChannel,repeatCount, delay_ms},radioPacket.getEncoded());
-        RFSpyResponse response = writeToData(radioPacket.getEncoded(),repeatCount * delay_ms);
+        RFSpyResponse response = writeToData(fullPacket,repeatCount * delay_ms);
         return response;
     }
 
@@ -142,6 +142,7 @@ public class RFSpy {
     public void updateRegister() {
 
     }
+
     public void setBaseFrequency() {
 
     }

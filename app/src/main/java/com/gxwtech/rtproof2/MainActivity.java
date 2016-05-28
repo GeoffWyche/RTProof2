@@ -2,13 +2,7 @@ package com.gxwtech.rtproof2;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -19,6 +13,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 
 import com.gxwtech.rtproof2.BLECommOperations.BLECommOperation;
 import com.gxwtech.rtproof2.BLECommOperations.BLECommOperationResult;
@@ -150,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void testRileyLink() {
-/*
+
         // This operation reads from the BLE113 version.
         BLECommOperationResult result =
                 bleComm.readCharacteristic_blocking(UUID.fromString(GattAttributes.SERVICE_RADIO),UUID.fromString(GattAttributes.CHARA_RADIO_VERSION));
@@ -160,11 +155,12 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG,"testRileyLink: error, result code is "+result.resultCode);
         }
 
+
         // This operation reads from the CC1110 version
         // It also tests that the write-radio/get notification/read-radio sequence is working.
         RFSpyResponse response = rfspy.getRadioVersion();
         Log.d(TAG,"getRadioVersion response was: " + ByteUtil.shortHexString(response.getRaw()));
-*/
+
         //listenContinuously();
         shoutForPump(0,1);
         pressDownKey(0);
@@ -176,19 +172,24 @@ public class MainActivity extends AppCompatActivity {
 
         shoutForPump(2,1);
         pressDownKey(2);
+
+    }
+
+    public void onPressKeyButton(View view) {
+        pressDownKey(0);
     }
 
     public void shoutForPump(int channel, int repeatCount) {
         Log.w(TAG,String.format("ShoutForPump, channel %d, repeatCount %d",channel,repeatCount));
         for (int i=0; i< repeatCount; i++) {
-            rfspy.transmit(new RadioPacket(new byte[]{(byte) 0xa7, 0x51, (byte) 0x81, 0x63, 0x5d, 0x00}), (byte) channel, (byte) 10, (byte) 0);
+            rfspy.transmit(new RadioPacket(new byte[]{(byte) 0xa7, 0x51, (byte) 0x81, 0x63, 0x5d, 0x00}), (byte) channel, (byte) repeatCount, (byte) 0);
             SystemClock.sleep(100);
         }
     }
 
     public void pressDownKey(int channel) {
         Log.w(TAG,String.format("pressDownKey, channel %d",channel));
-        rfspy.transmit(new RadioPacket(new byte[] {(byte)0xa7, 0x51, (byte)0x81, 0x63, 0x5b, 0x00}),(byte)channel,(byte)0,(byte)0);
+        rfspy.transmit(new RadioPacket(new byte[] {(byte)0xa7, 0x51, (byte)0x81, 0x63, 0x5b, 0x01, 0x04}),(byte)channel,(byte)0,(byte)0);
         SystemClock.sleep(100);
     }
 

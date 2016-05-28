@@ -18,5 +18,6 @@ public class Constants {
     public class activityResult {
         public static final int REQUEST_ENABLE_BT = 1;
     }
-    public static final String RileyLinkAddress = "00:07:80:39:4C:B1";
+    public static final String RileyLinkAddress = "00:07:80:2D:9E:F4";
+    //public static final String RileyLinkAddress = "00:07:80:39:4C:B1";
 }
