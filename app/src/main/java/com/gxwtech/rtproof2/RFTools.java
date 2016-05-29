@@ -7,8 +7,8 @@ import java.util.ArrayList;
 /**
  * Created by geoff on 7/31/15.
  */
-public class RileyLinkUtil {
-    private static final String TAG = "RileyLinkUtil";
+public class RFTools {
+    private static final String TAG = "RFTools";
     /*
      CodeSymbols is an ordered list of translations
      6bits -> 4 bits, in order from 0x0 to 0xF
@@ -50,26 +50,6 @@ public class RileyLinkUtil {
         return rval;
     }
 
-    // return a 12 bit binary number representing outgoing RF code for byte
-    // 0xa7 -> (0xa -> 0x2a == 101010) + (0x7 -> 0x16 == 010110) == 1010 1001 0110 = 0xa96
-    // zero extend low bits to achieve 2 bytes: 0xa960
-    public static int composeRFBytes(byte b) {
-        int rval = 0;
-
-        // bit translations are per nibble
-        int lowNibble = b & 0x0F;
-        byte lowCode = CodeSymbols[lowNibble];
-        int highNibble = (b & 0xF0) >> 4;
-        byte highCode = CodeSymbols[highNibble];
-
-        byte highByte = (byte)(((highCode << 2) & 0xFC) | ((lowCode & 0x30) >> 4));
-        byte lowByte = (byte)((lowCode & 0x0f) << 4);
-        rval = highByte;
-        rval = rval << 8;
-        rval = rval | (lowByte & 0xFF);
-        return rval;
-    }
-
     public static ArrayList<Byte> fromBytes(byte[] data) {
         ArrayList<Byte> rval = new ArrayList<>();
         for (int i=0; i<data.length; i++) {
@@ -87,7 +67,7 @@ public class RileyLinkUtil {
     }
 
 /*
-    + (NSData*)encodeData:(NSData*)data {
+    + (NSData*)encode4b6b:(NSData*)data {
         NSMutableData *outData = [NSMutableData data];
         NSMutableData *dataPlusCrc = [data mutableCopy];
         unsigned char crc = [MinimedPacket crcForData:data];
@@ -133,18 +113,13 @@ public class RileyLinkUtil {
         return -1;
     }
 
-    public static byte[] encodeData(byte[] data) {
+    public static byte[] encode4b6b(byte[] data) {
         if ((data.length % 2)!=0) {
             Log.e(TAG,"Warning: data is odd number of bytes");
         }
         // use arraylists because byte[] is annoying.
         ArrayList<Byte> inData = fromBytes(data);
         ArrayList<Byte> outData = new ArrayList<>();
-        /*
-        ArrayList<Byte> dataPlusCrc = fromBytes(OtherCRC.appendCRC(data));
-        ArrayList<Byte> dataPlusMyCrc = fromBytes(data);
-        */
-        //dataPlusMyCrc.add(CRC.crc8(data));
 
         int acc = 0;
         int bitcount = 0;
@@ -185,10 +160,6 @@ public class RileyLinkUtil {
         // convert back to byte[]
         byte[] rval = toBytes(outData);
 
-        //Log.d(TAG, "encodeData: (length " + data.length + ") input is " + toHexString(data));
-        //Log.e(TAG,"encodeData: input with OtherCRC is " + toHexString(toBytes(dataPlusCrc)));
-        //Log.e(TAG,"encodeData: input with My CRC is " +toHexString(toBytes(dataPlusMyCrc)));
-        //Log.d(TAG, "encodeData: (length " + rval.length + ") output is " + toHexString(rval));
         return rval;
 
     }
@@ -216,20 +187,17 @@ public class RileyLinkUtil {
             Log.e(TAG,"test: compare failed.");
         }
         //testCompose(new byte[] {(byte)0xa7, (byte)0xa7});
-        int result;
-        result = composeRFBytes((byte)0xa7);
-
-        byte[] bs = encodeData(new byte[]{(byte) 0xa7});
+        byte[] bs = encode4b6b(new byte[]{(byte) 0xa7});
         byte[] out = new byte[] {(byte)(0xa9),0x65};
         if (ByteUtil.compare(bs,out)!=0) {
             Log.e(TAG,"encode Data failed: expected "+ByteUtil.shortHexString(out)+" but got "+ByteUtil.shortHexString(bs));
         }
-        bs = encodeData(new byte[]{(byte) 0xa7, 0x12});
+        bs = encode4b6b(new byte[]{(byte) 0xa7, 0x12});
         out = new byte[] {(byte)(0xa9),0x6c,0x72};
         if (ByteUtil.compare(bs,out)!=0) {
             Log.e(TAG,"encode Data failed: expected "+ByteUtil.shortHexString(out)+" but got "+ByteUtil.shortHexString(bs));
         }
-        bs = encodeData(new byte[]{(byte) 0xa7, 0x12, (byte) 0xa7});
+        bs = encode4b6b(new byte[]{(byte) 0xa7, 0x12, (byte) 0xa7});
         out = new byte[] {(byte)(0xa9),0x6c,0x72,(byte)0xa9,0x65};
         if (ByteUtil.compare(bs,out)!=0) {
             Log.e(TAG,"encode Data failed: expected "+ByteUtil.shortHexString(out)+" but got "+ByteUtil.shortHexString(bs));
@@ -237,7 +205,7 @@ public class RileyLinkUtil {
         return;
     }
 
-    public static byte[] decodeRF(byte[] raw) {
+    public static byte[] decode4b6b(byte[] raw) {
         /*
         if ((raw.length % 2) != 0) {
             Log.e(TAG,"Warning: data is odd number of bytes");
@@ -247,7 +215,7 @@ public class RileyLinkUtil {
         int availableBits = 0;
         int codingErrors = 0;
         int x = 0;
-        //Log.w(TAG,"decodeRF: untested code");
+        //Log.w(TAG,"decode4b6b: untested code");
         //Log.w(TAG,String.format("Decoding %d bytes: %s",raw.length,ByteUtil.shortHexString(raw)));
         for (int i=0; i<raw.length; i++) {
             int unsignedValue = raw[i];
@@ -286,14 +254,14 @@ public class RileyLinkUtil {
             if ((availableBits == 4) && (x == 0x05)) {
                 // normal end
             } else {
-                Log.e(TAG, "decodeRF: failed clean decode -- extra bits available (not marker)(" + availableBits + ")");
+                Log.e(TAG, "decode4b6b: failed clean decode -- extra bits available (not marker)(" + availableBits + ")");
                 codingErrors++;
             }
         } else {
             // also normal end.
         }
         if (codingErrors>0) {
-            Log.e(TAG, "decodeRF: "+codingErrors+" coding errors encountered.");
+            Log.e(TAG, "decode4b6b: "+codingErrors+" coding errors encountered.");
         }
         return rval;
     }

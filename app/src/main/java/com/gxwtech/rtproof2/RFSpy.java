@@ -4,11 +4,12 @@ import android.content.Context;
 import android.os.SystemClock;
 import android.util.Log;
 
-import com.gxwtech.rtproof2.BLECommOperations.BLECommOperation;
 import com.gxwtech.rtproof2.BLECommOperations.BLECommOperationResult;
+import com.gxwtech.rtproof2.Messages.GenericMessageBody;
+import com.gxwtech.rtproof2.Messages.GetPumpModelCarelinkMessageBody;
+import com.gxwtech.rtproof2.RLCommands.UpdateRegisterCmd;
 
 import java.util.UUID;
-import java.util.concurrent.RunnableFuture;
 
 /**
  * Created by geoff on 5/26/16.
@@ -22,7 +23,25 @@ public class RFSpy {
     public static final byte RFSPY_UPDATE_REGISTER = 6;
     public static final byte RFSPY_RESET = 7;
 
-    public static final int bluetoothLatency_ms = 2000;
+    public static final long RILEYLINK_FREQ_XTAL = 24000000;
+
+    public static final byte CC111X_REG_FREQ2 = 0x09;
+    public static final byte CC111X_REG_FREQ1 = 0x0A;
+    public static final byte CC111X_REG_FREQ0 = 0x0B;
+    public static final byte CC111X_MDMCFG4 = 0x0C;
+    public static final byte CC111X_MDMCFG3 = 0x0D;
+    public static final byte CC111X_MDMCFG2 = 0x0E;
+    public static final byte CC111X_MDMCFG1 = 0x0F;
+    public static final byte CC111X_MDMCFG0 = 0x10;
+    public static final byte CC111X_AGCCTRL2 = 0x17;
+    public static final byte CC111X_AGCCTRL1 = 0x18;
+    public static final byte CC111X_AGCCTRL0 = 0x19;
+    public static final byte CC111X_FREND1 = 0x1A;
+    public static final byte CC111X_FREND0 = 0x1B;
+
+    public static final int EXPECTED_MAX_BLUETOOTH_LATENCY_MS = 1500;
+
+    public double[] scanFrequencies = {916.45, 916.50, 916.55, 916.60, 916.65, 916.70, 916.75, 916.80};
 
     private static final String TAG = "RFSpy";
     private BLEComm bleComm;
@@ -32,6 +51,8 @@ public class RFSpy {
     UUID radioDataUUID = UUID.fromString(GattAttributes.CHARA_RADIO_DATA);
     UUID radioVersionUUID = UUID.fromString(GattAttributes.CHARA_RADIO_VERSION);
     UUID responseCountUUID = UUID.fromString(GattAttributes.CHARA_RADIO_RESPONSE_COUNT);
+
+    private static final byte[] pumpID = {0x51, (byte)0x81, 0x63};
 
     public RFSpy(Context context, BLEComm bleComm) {
         this.context = context;
@@ -84,12 +105,23 @@ public class RFSpy {
         byte[] prepended = ByteUtil.concat(new byte[] {(byte)(bytes.length)},bytes);
         bleComm.writeCharacteristic_blocking(radioServiceUUID,radioDataUUID,prepended);
         SystemClock.sleep(100);
-        Log.w(TAG,ThreadUtil.sig()+"writeToData: 'timeout' is " + (responseTimeout_ms + bluetoothLatency_ms));
-        byte[] rawResponse = reader.poll(responseTimeout_ms + bluetoothLatency_ms);
+        Log.w(TAG,ThreadUtil.sig()+String.format(" writeToData:(timeout %d) %s",(responseTimeout_ms),ByteUtil.shortHexString(prepended)));
+        byte[] rawResponse = reader.poll(responseTimeout_ms);
+        RFSpyResponse resp = new RFSpyResponse(rawResponse);
         if (rawResponse == null) {
-            Log.e(TAG,"No response from RileyLink");
+            Log.e(TAG,"writeToData: No response from RileyLink");
+        } else {
+            if (resp.wasInterrupted()) {
+                Log.e(TAG, "writeToData: RileyLink was interrupted");
+            } else if (resp.wasTimeout()) {
+                Log.e(TAG, "writeToData: RileyLink reports timeout");
+            } else if (resp.isOK()) {
+                Log.e(TAG, "writeToData: RileyLink reports OK");
+            } else {
+                Log.w(TAG, "writeToData: raw response is " + ByteUtil.shortHexString(rawResponse));
+            }
         }
-        return new RFSpyResponse(rawResponse);
+        return resp;
     }
 
     public RFSpyResponse getRadioVersion() {
@@ -127,8 +159,8 @@ public class RFSpy {
         return writeToData(listen,receiveDelay);
     }
 
-    public RFSpyResponse transmitThenReceive(byte sendChannel, byte repeatCount, byte delay_ms, byte listenChannel, int timeout_ms, byte retryCount) {
-        int sendDelay = repeatCount * delay_ms * 1; // let 1ms be base time to send a packet at all.
+    public RFSpyResponse transmitThenReceive(RadioPacket pkt, byte sendChannel, byte repeatCount, byte delay_ms, byte listenChannel, int timeout_ms, byte retryCount) {
+        int sendDelay = repeatCount * delay_ms;
         int receiveDelay = timeout_ms * (retryCount + 1);
         byte[] sendAndListen = {RFSPY_SEND_AND_LISTEN,sendChannel,repeatCount,delay_ms,listenChannel,
                 (byte)((timeout_ms >> 24)&0x0FF),
@@ -136,15 +168,57 @@ public class RFSpy {
                 (byte)((timeout_ms >> 8)&0x0FF),
                 (byte)(timeout_ms & 0x0FF),
                 retryCount};
-        return writeToData(sendAndListen, sendDelay + receiveDelay);
+        byte[] fullPacket = ByteUtil.concat(sendAndListen,pkt.getEncoded());
+        return writeToData(fullPacket, sendDelay + receiveDelay + EXPECTED_MAX_BLUETOOTH_LATENCY_MS);
     }
 
-    public void updateRegister() {
-
+    public RFSpyResponse updateRegister(byte addr, byte val) {
+        UpdateRegisterCmd cmd = new UpdateRegisterCmd(addr,val);
+        RFSpyResponse resp = writeToData(cmd.getRaw(),EXPECTED_MAX_BLUETOOTH_LATENCY_MS);
+        cmd.rawResponse = resp.getRaw();
+        return resp;
     }
 
-    public void setBaseFrequency() {
+    public void setBaseFrequency(double freqMHz) {
+        int value = (int)(freqMHz * 1000000/((double)(RILEYLINK_FREQ_XTAL)/Math.pow(2.0,16.0)));
+        updateRegister(CC111X_REG_FREQ0, (byte)(value & 0xff));
+        updateRegister(CC111X_REG_FREQ1, (byte)((value >> 8) & 0xff));
+        updateRegister(CC111X_REG_FREQ2, (byte)((value >> 16) & 0xff));
+        Log.w(TAG,String.format("Set frequency to %.2f",freqMHz));
+    }
 
+    private void wakeup(int duration_minutes) {
+        PumpMessage msg = makePumpMessage(new MessageType(MessageType.PowerOn),new GenericMessageBody(new byte[] {(byte)duration_minutes}));
+        RFSpyResponse resp = transmitThenReceive(new RadioPacket(msg.getTxData()),(byte)0,(byte)200,(byte)0,(byte)0,15000,(byte)0);
+        Log.e(TAG,"wakeup: raw response is "+ByteUtil.shortHexString(resp.getRaw()));
+    }
+
+    public void tunePump() {
+        scanForPump(scanFrequencies);
+    }
+
+    private void scanForPump(double[] frequencies) {
+        wakeup(1);
+
+        int tries = 3;
+        for (int j = 0; j<tries; j++) {
+            for (int i=0; i<frequencies.length; i++) {
+                PumpMessage msg = makePumpMessage(new MessageType(MessageType.GetPumpModel), new GetPumpModelCarelinkMessageBody());
+                setBaseFrequency(frequencies[i]);
+                RFSpyResponse resp = transmitThenReceive(new RadioPacket(msg.getTxData()),(byte) 0, (byte) 0, (byte) 0, (byte) 0, EXPECTED_MAX_BLUETOOTH_LATENCY_MS, (byte) 0);
+                if (resp.wasTimeout()) {
+                    Log.e(TAG,String.format("scanForPump: Failed to find pump at frequency %.2f",frequencies[i]));
+                } else {
+                    Log.e(TAG, "scanForPump: raw response is " + ByteUtil.shortHexString(resp.getRaw()));
+                }
+            }
+        }
+    }
+
+    private PumpMessage makePumpMessage(MessageType messageType, MessageBody messageBody) {
+        PumpMessage msg = new PumpMessage();
+        msg.init(new PacketType(PacketType.Carelink),pumpID,messageType,messageBody);
+        return msg;
     }
 
 }

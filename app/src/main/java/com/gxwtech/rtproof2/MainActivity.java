@@ -155,7 +155,9 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG,"testRileyLink: error, result code is "+result.resultCode);
         }
 
+        rfspy.tunePump();
 
+        /*
         // This operation reads from the CC1110 version
         // It also tests that the write-radio/get notification/read-radio sequence is working.
         RFSpyResponse response = rfspy.getRadioVersion();
@@ -172,7 +174,7 @@ public class MainActivity extends AppCompatActivity {
 
         shoutForPump(2,1);
         pressDownKey(2);
-
+*/
     }
 
     public void onPressKeyButton(View view) {

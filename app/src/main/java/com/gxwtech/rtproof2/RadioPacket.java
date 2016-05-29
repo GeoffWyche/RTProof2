@@ -14,7 +14,8 @@ public class RadioPacket {
     }
     public byte[] getEncoded() {
         byte[] withCRC = ByteUtil.concat(pkt,CRC.crc8(pkt));
-        byte[] encoded = RileyLinkUtil.encodeData(withCRC);
-        return encoded;
+        byte[] encoded = RFTools.encode4b6b(withCRC);
+        byte[] withNullTerm = ByteUtil.concat(encoded,(byte)0);
+        return withNullTerm;
     }
 }

@@ -33,7 +33,7 @@ public class RFSpyReader {
 
     // This timeout must be coordinated with the length of the RFSpy radio operation or Bad Things Happen.
     public byte[] poll(int timeout_ms) {
-        Log.d(TAG,ThreadUtil.sig()+"Entering poll at t=="+SystemClock.uptimeMillis()+", timeout is "+timeout_ms+" mDataQueue size is "+mDataQueue.size());
+        Log.v(TAG,ThreadUtil.sig()+"Entering poll at t=="+SystemClock.uptimeMillis()+", timeout is "+timeout_ms+" mDataQueue size is "+mDataQueue.size());
         if (mDataQueue.isEmpty())
         try {
             // block until timeout or data available.
@@ -54,7 +54,7 @@ public class RFSpyReader {
     // Call this from the "response count" notification handler.
     public void newDataIsAvailable() {
         releaseCount++;
-        Log.w(TAG,ThreadUtil.sig()+"waitForRadioData released(count="+releaseCount+") at t="+SystemClock.uptimeMillis());
+        Log.v(TAG,ThreadUtil.sig()+"waitForRadioData released(count="+releaseCount+") at t="+SystemClock.uptimeMillis());
         waitForRadioData.release();
     }
 
@@ -69,13 +69,20 @@ public class RFSpyReader {
                     try {
                         acquireCount++;
                         waitForRadioData.acquire();
-                        Log.w(TAG,ThreadUtil.sig()+"waitForRadioData acquired (count="+acquireCount+") at t="+SystemClock.uptimeMillis());
+                        Log.v(TAG,ThreadUtil.sig()+"waitForRadioData acquired (count="+acquireCount+") at t="+SystemClock.uptimeMillis());
                         SystemClock.sleep(100);
                         SystemClock.sleep(1);
                         result = bleComm.readCharacteristic_blocking(serviceUUID, radioDataUUID);
                         SystemClock.sleep(100);
 
                         if (result.resultCode == BLECommOperationResult.RESULT_SUCCESS) {
+                            // only data up to the first null is valid
+                            for (int i=0; i<result.value.length; i++) {
+                                if (result.value[i]==0) {
+                                    result.value = ByteUtil.substring(result.value,0,i);
+                                    break;
+                                }
+                            }
                             mDataQueue.add(result.value);
                         } else if (result.resultCode == BLECommOperationResult.RESULT_INTERRUPTED) {
                             Log.e(TAG, "Read operation was interrupted");
