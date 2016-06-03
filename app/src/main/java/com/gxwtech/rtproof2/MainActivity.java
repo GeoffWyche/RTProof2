@@ -15,14 +15,20 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 
-import com.gxwtech.rtproof2.BLECommOperations.BLECommOperation;
-import com.gxwtech.rtproof2.BLECommOperations.BLECommOperationResult;
+import com.gxwtech.rtproof2.RileyLink.PumpManager;
+import com.gxwtech.rtproof2.RileyLink.RFSpy;
+import com.gxwtech.rtproof2.RileyLink.RFSpyResponse;
+import com.gxwtech.rtproof2.RileyLinkBLE.BLECommOperations.BLECommOperationResult;
+import com.gxwtech.rtproof2.RileyLinkBLE.GattAttributes;
+import com.gxwtech.rtproof2.RileyLinkBLE.RadioPacket;
+import com.gxwtech.rtproof2.RileyLinkBLE.RileyLinkBLE;
+import com.gxwtech.rtproof2.medtronic.Messages.ButtonPressCarelinkMessageBody;
+import com.gxwtech.rtproof2.util.ByteUtil;
 
-import java.util.List;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
-    private static final String TAG="MainActivity";
+    private static final String TAG = "MainActivity";
     private static Context context;
 
     private BluetoothAdapter bluetoothAdapter;
@@ -30,10 +36,11 @@ public class MainActivity extends AppCompatActivity {
     private Handler scanHandler = new Handler();
     private BroadcastReceiver mBroadcastReceiver;
 
-    private BLEComm bleComm;
+    private RileyLinkBLE rileyLinkBle;
     private RFSpy rfspy;
 
     private BluetoothDevice deviceFoundFromScan;
+    private PumpManager pumpManager;
 
     public MainActivity() {
     }
@@ -53,40 +60,48 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (intent == null) {
-                    Log.e(TAG,"onReceive: received null intent");
+                    Log.e(TAG, "onReceive: received null intent");
                 } else {
                     String action = intent.getAction();
                     if (action == null) {
-                        Log.e(TAG,"onReceive: null action");
+                        Log.e(TAG, "onReceive: null action");
                     } else {
-                        Log.d(TAG,"onReceive: action=" + action);
+                        Log.d(TAG, "onReceive: action=" + action);
                         if (Constants.rileylink_ready.equals(intent.getAction())) {
-                            rfspy = new RFSpy(context,bleComm);
+                            rfspy = new RFSpy(context, rileyLinkBle);
                             rfspy.startReader();
-                            testRileyLink();
+                            //testRileyLink();
+                            pumpManager = new PumpManager(rfspy, new byte[]{0x51, (byte) 0x81, 0x63});
+                            //pumpManager.tunePump();
+                            rfspy.setBaseFrequency(916.65);
+                            pumpManager.pressButton(ButtonPressCarelinkMessageBody.BUTTON_UP);
+
+                            pumpManager.getPumpHistory(1);
+
+                            //testPumpManager();
                             /*
                         } else if (Constants.start_ble_scan.equals(intent.getAction())) {
                             scanLeDevice(true);
                             */
                         } else if (Constants.ble_permission_granted.equals(intent.getAction())) {
-                            bleComm.findRileylink();
+                            rileyLinkBle.findRileylink();
                         } else if (Constants.rileylink_found.equals(intent.getAction())) {
-                            bleComm.connectGatt();
+                            rileyLinkBle.connectGatt();
                         } else if (Constants.local.BLUETOOTH_CONNECTED.equals(intent.getAction())) {
                             scanLeDevice(false);
-                            bleComm.discoverServices();
+                            rileyLinkBle.discoverServices();
                         } else if (Constants.local.BLE_services_discovered.equals((intent.getAction()))) {
-                            BLECommOperationResult result = bleComm.setNotification_blocking(
+                            BLECommOperationResult result = rileyLinkBle.setNotification_blocking(
                                     UUID.fromString(GattAttributes.SERVICE_RADIO),
                                     UUID.fromString(GattAttributes.CHARA_RADIO_RESPONSE_COUNT));
                             if (result.resultCode != BLECommOperationResult.RESULT_SUCCESS) {
-                                Log.e(TAG,"Error setting response count notification");
+                                Log.e(TAG, "Error setting response count notification");
                             }
-                            Log.i(TAG,"Announcing RileyLink open For business");
+                            Log.i(TAG, "Announcing RileyLink open For business");
                             Intent rlReady = new Intent(Constants.rileylink_ready);
                             LocalBroadcastManager.getInstance(MainActivity.context).sendBroadcast(rlReady);
                         } else {
-                            Log.e(TAG,"Unhandled intent: " + intent.getAction());
+                            Log.e(TAG, "Unhandled intent: " + intent.getAction());
                         }
                     }
                 }
@@ -100,13 +115,13 @@ public class MainActivity extends AppCompatActivity {
         intentFilter.addAction(Constants.local.BLUETOOTH_CONNECTED);
         intentFilter.addAction(Constants.local.BLE_services_discovered);
         intentFilter.addAction(Constants.rileylink_ready);
-        LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(mBroadcastReceiver,intentFilter);
+        LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(mBroadcastReceiver, intentFilter);
 
-        bleComm = new BLEComm();
+        rileyLinkBle = new RileyLinkBLE();
 
         //Intent startScanIntent = new Intent(Constants.start_ble_scan);
         //LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(startScanIntent);
-        Log.d(TAG,"onCreate(): I'm alive");
+        Log.d(TAG, "onCreate(): I'm alive");
         initBluetooth();
 
     }
@@ -133,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
             startActivityForResult(enableBtIntent, Constants.activityResult.REQUEST_ENABLE_BT);
         } else {
             if (bluetoothAdapter == null) {
-                Log.e(TAG,"initBluetooth: adapter is null");
+                Log.e(TAG, "initBluetooth: adapter is null");
                 final BluetoothManager bluetoothManager =
                         (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
                 bluetoothAdapter = bluetoothManager.getAdapter();
@@ -144,18 +159,26 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private void testPumpManager() {
+        pumpManager.getPumpHistory(1);
+    }
+
+
     public void testRileyLink() {
 
         // This operation reads from the BLE113 version.
         BLECommOperationResult result =
-                bleComm.readCharacteristic_blocking(UUID.fromString(GattAttributes.SERVICE_RADIO),UUID.fromString(GattAttributes.CHARA_RADIO_VERSION));
+                rileyLinkBle.readCharacteristic_blocking(UUID.fromString(GattAttributes.SERVICE_RADIO),UUID.fromString(GattAttributes.CHARA_RADIO_VERSION));
         if (result.resultCode == BLECommOperationResult.RESULT_SUCCESS) {
             Log.d(TAG,"testRileyLink: version returned: " + ByteUtil.shortHexString(result.value));
         } else {
             Log.e(TAG,"testRileyLink: error, result code is "+result.resultCode);
         }
 
-        rfspy.tunePump();
+        pumpManager.tunePump();
+
+
+        pumpManager.getPumpHistory(1);
 
         /*
         // This operation reads from the CC1110 version
