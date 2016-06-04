@@ -74,9 +74,14 @@ public class MainActivity extends AppCompatActivity {
                             pumpManager = new PumpManager(rfspy, new byte[]{0x51, (byte) 0x81, 0x63});
                             //pumpManager.tunePump();
                             rfspy.setBaseFrequency(916.65);
-                            pumpManager.pressButton(ButtonPressCarelinkMessageBody.BUTTON_UP);
-
-                            pumpManager.getPumpHistory(1);
+                            pumpManager.wakeup(6);
+                            pumpManager.getPumpModel();
+                            //pumpManager.getPumpRTC();
+                            //pumpManager.getPumpModel();
+                            //pumpManager.pressButton(ButtonPressCarelinkMessageBody.BUTTON_UP);
+                            //pumpManager.getPumpModel();
+                            pumpManager.getPumpHistory(0);
+                            //pumpManager.hunt();
 
                             //testPumpManager();
                             /*

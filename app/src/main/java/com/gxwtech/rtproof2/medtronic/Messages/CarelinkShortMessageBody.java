@@ -3,14 +3,16 @@ package com.gxwtech.rtproof2.medtronic.Messages;
 /**
  * Created by geoff on 5/29/16.
  */
-public class GenericMessageBody extends MessageBody {
-    byte[] body = new byte[0];
+public class CarelinkShortMessageBody extends MessageBody {
+    byte[] body;
 
     public int getLength() {
         return body.length;
     }
 
-    public GenericMessageBody(byte[] data) {
+    public CarelinkShortMessageBody() { init(new byte[] {0}); }
+
+    public CarelinkShortMessageBody(byte[] data) {
         init(data);
     }
 

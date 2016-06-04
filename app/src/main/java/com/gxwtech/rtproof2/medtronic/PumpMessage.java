@@ -51,6 +51,10 @@ public class PumpMessage {
         return rval;
     }
 
+    public byte[] getContents() {
+        return ByteUtil.concat(new byte[] {messageType.mtype}, messageBody.getTxData());
+    }
+
     public boolean isValid() {
         if (packetType == null) return false;
         if (address == null) return false;

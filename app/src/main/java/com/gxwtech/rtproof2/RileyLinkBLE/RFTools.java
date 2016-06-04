@@ -118,7 +118,7 @@ public class RFTools {
 
     public static byte[] encode4b6b(byte[] data) {
         if ((data.length % 2)!=0) {
-            Log.e(TAG,"Warning: data is odd number of bytes");
+           // Log.e(TAG,"Warning: data is odd number of bytes");
         }
         // use arraylists because byte[] is annoying.
         ArrayList<Byte> inData = fromBytes(data);

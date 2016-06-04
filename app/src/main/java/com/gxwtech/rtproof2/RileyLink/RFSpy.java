@@ -109,7 +109,7 @@ public class RFSpy {
         byte[] prepended = ByteUtil.concat(new byte[] {(byte)(bytes.length)},bytes);
         rileyLinkBle.writeCharacteristic_blocking(radioServiceUUID,radioDataUUID,prepended);
         SystemClock.sleep(100);
-        Log.w(TAG,ThreadUtil.sig()+String.format(" writeToData:(timeout %d) %s",(responseTimeout_ms),ByteUtil.shortHexString(prepended)));
+        //Log.i(TAG,ThreadUtil.sig()+String.format(" writeToData:(timeout %d) %s",(responseTimeout_ms),ByteUtil.shortHexString(prepended)));
         byte[] rawResponse = reader.poll(responseTimeout_ms);
         RFSpyResponse resp = new RFSpyResponse(rawResponse);
         if (rawResponse == null) {
@@ -120,14 +120,14 @@ public class RFSpy {
             } else if (resp.wasTimeout()) {
                 Log.e(TAG, "writeToData: RileyLink reports timeout");
             } else if (resp.isOK()) {
-                Log.e(TAG, "writeToData: RileyLink reports OK");
+                Log.w(TAG, "writeToData: RileyLink reports OK");
             } else {
                 if (resp.looksLikeRadioPacket()) {
                     RadioResponse radioResp = resp.getRadioResponse();
                     byte[] responsePayload = radioResp.getPayload();
-                    Log.e(TAG,"writeToData: decoded radio response is "+ByteUtil.shortHexString(responsePayload));
+                    Log.i(TAG,"writeToData: decoded radio response is "+ByteUtil.shortHexString(responsePayload));
                 }
-                Log.w(TAG, "writeToData: raw response is " + ByteUtil.shortHexString(rawResponse));
+                //Log.i(TAG, "writeToData: raw response is " + ByteUtil.shortHexString(rawResponse));
             }
         }
         return resp;
