@@ -139,9 +139,9 @@ public class PumpSettings {
         // write out a string describing the current contents
         rval += String.format("Auto-Off Duration (hours): %d\n",mAutoOffDuration_hours);
         rval += String.format("Alarm (Volume: %d, Mode: %d)\n",mAlarmVolume,mAlarmMode);
-        rval += String.format("Audio Bolus (enabled=%s, size=%g)\n",mAudioBolusEnable,mAudioBolusSize);
-        rval += String.format("Variable Bolus Enable: %s\n", mVariableBolusEnable);
-        rval += String.format("Max Bolus: %g\n",mMaxBolus);
+        rval += String.format("Audio BolusNormalPumpEvent (enabled=%s, size=%g)\n",mAudioBolusEnable,mAudioBolusSize);
+        rval += String.format("Variable BolusNormalPumpEvent Enable: %s\n", mVariableBolusEnable);
+        rval += String.format("Max BolusNormalPumpEvent: %g\n",mMaxBolus);
         rval += String.format("Max Basal: %g\n",mMaxBasal);
         rval += String.format("Time Format 0x%02X\n", mTimeFormat);
         rval += String.format("Insulin Concentration %d%%\n",mInsulinConcentration);

@@ -40,10 +40,11 @@ public class ReadBasalTempCommand extends MedtronicCommand {
         int durationLowByte = readUnsignedByte(receivedData[5]);
         int minutes = (durationHighByte * 256) + durationLowByte;
 
-        mTempBasalPair.mInsulinRate = rateByte * 0.025;
-        mTempBasalPair.mDurationMinutes = minutes;
+        mTempBasalPair.setInsulinRate(rateByte * 0.025);
+        mTempBasalPair.setIsPercent(false); // FIXME
+        mTempBasalPair.setDurationMinutes(minutes);
         Log.v(TAG, String.format("TempBasalPair read as: insulinRate: %.3f U, duration %d minutes",
-                mTempBasalPair.mInsulinRate, mTempBasalPair.mDurationMinutes));
+                mTempBasalPair.getInsulinRate(), mTempBasalPair.getDurationMinutes()));
     }
 
     public TempBasalPair getTempBasalPair() {

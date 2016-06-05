@@ -12,13 +12,13 @@ package com.gxwtech.rtproof2.medtronic.PumpData;
 
 import android.util.Log;
 
+import com.gxwtech.rtproof2.medtronic.PumpData.records.BolusWizardBolusEstimatePumpEvent;
+import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalRatePumpEvent;
 import com.gxwtech.rtproof2.util.CRC;
 import com.gxwtech.rtproof2.util.HexDump;
-import com.gxwtech.rtproof2.medtronic.PumpData.records.BolusWizard;
 import com.gxwtech.rtproof2.medtronic.PumpData.records.Record;
 import com.gxwtech.rtproof2.medtronic.PumpData.records.RecordTypeEnum;
-import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalDuration;
-import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalRate;
+import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalDurationPumpEvent;
 import com.gxwtech.rtproof2.medtronic.PumpModel;
 
 import org.joda.time.DateTime;
@@ -29,7 +29,7 @@ import java.util.List;
 
 public class Page {
     private final static String TAG = "Page";
-    private static final boolean DEBUG_PAGE = false;
+    private static final boolean DEBUG_PAGE = true;
 
     private byte[] crc;
     private byte[] data;
@@ -97,7 +97,7 @@ public class Page {
         }
         */
         // GGW: The above parser fails, so we're going to hack it:
-        // Find possible matches for TempBasalRate, TempBasalDuration and BolusWizard events
+        // Find possible matches for TempBasalRatePumpEvent, TempBasalDurationPumpEvent and BolusWizardBolusEstimatePumpEvent events
         // (as those are the only ones we care about at the moment. and try to parse them.
         int dataIndex = 0;
         boolean done = false;
@@ -112,47 +112,48 @@ public class Page {
                 record = attemptParseRecord(data,dataIndex);
             }
             if (record != null) {
+                Log.i(TAG,"parseFrom: found event "+record.getClass().getSimpleName());
                 // found something.  Is it something we trust or care about?
-                if (record.getRecordOp() == RecordTypeEnum.RECORD_TYPE_BOLUSWIZARD.opcode()) {
-                    BolusWizard bw = (BolusWizard)record;
+                if (record.getRecordOp() == RecordTypeEnum.RECORD_TYPE_BolusWizardBolusEstimate.opcode()) {
+                    BolusWizardBolusEstimatePumpEvent bw = (BolusWizardBolusEstimatePumpEvent)record;
                     mRecordList.add(record);
                     /*
-                    Log.d(TAG,String.format("Found BolusWizard record (time:%s) at offset %d",
+                    Log.d(TAG,String.format("Found BolusWizardBolusEstimatePumpEvent record (time:%s) at offset %d",
                             bw.getTimeStamp().toString(),dataIndex));
                             */
-                    if (record.getSize() > 0) {
-                        dataIndex += record.getSize();
+                    if (record.getLength() > 0) {
+                        dataIndex += record.getLength();
                     } else {
                         dataIndex +=1;
                     }
                 } else if (record.getRecordOp() == RecordTypeEnum.RECORD_TYPE_TEMPBASALDURATION.opcode()) {
-                    TempBasalDuration tbd = (TempBasalDuration) record;
+                    TempBasalDurationPumpEvent tbd = (TempBasalDurationPumpEvent) record;
                     mRecordList.add(record);
                     /*
-                    Log.d(TAG,String.format("Found TempBasalDuration record (time:%s) offset %d, duration %d",
+                    Log.d(TAG,String.format("Found TempBasalDurationPumpEvent record (time:%s) offset %d, duration %d",
                             tbd.getTimeStamp(),dataIndex,tbd.durationMinutes));
                             */
-                    if (record.getSize() > 0) {
-                        dataIndex += record.getSize();
+                    if (record.getLength() > 0) {
+                        dataIndex += record.getLength();
                     } else {
                         dataIndex +=1;
                     }
                 } else if (record.getRecordOp() == RecordTypeEnum.RECORD_TYPE_TEMPBASALRATE.opcode()) {
-                    TempBasalRate tbr = (TempBasalRate) record;
+                    TempBasalRatePumpEvent tbr = (TempBasalRatePumpEvent) record;
                     mRecordList.add(record);
                     /*
-                    Log.d(TAG,String.format("Found TempBasalRate record (time:%s) offset %d, rate %.3f",
+                    Log.d(TAG,String.format("Found TempBasalRatePumpEvent record (time:%s) offset %d, rate %.3f",
                             tbr.getTimeStamp(),dataIndex,tbr.basalRate));
                             */
-                    if (record.getSize() > 0) {
-                        dataIndex += record.getSize();
+                    if (record.getLength() > 0) {
+                        dataIndex += record.getLength();
                     } else {
                         dataIndex +=1;
                     }
                 } else {
-                    // else, it's a record we don't trust the size of, or aren't interested in,
-                    // so only increment by one, hoping to run into another record we can use
+                    mRecordList.add(record); // add it anyway.
                     dataIndex +=1;
+
                 }
             } else {
                 dataIndex +=1;
@@ -165,8 +166,7 @@ public class Page {
             Log.i(TAG, String.format("Number of records: %d", mRecordList.size()));
             int index = 1;
             for (Record r : mRecordList) {
-                Log.i(TAG, String.format("Record #%d", index));
-                r.logRecord();
+                Log.i(TAG, String.format("Record #%d: %s", index,r.getRecordTypeName()));
                 index += 1;
             }
         }
@@ -190,11 +190,13 @@ public class Page {
         RecordTypeEnum en = RecordTypeEnum.fromByte(data[offsetStart]);
         T record = en.getRecordClass();
         if (record != null) {
-            // sigh... trying to avoid array copying...
             // have to do this to set the record's opCode
             byte[] tmpData = new byte[data.length];
             System.arraycopy(data, offsetStart, tmpData, 0, data.length - offsetStart);
-            record.collectRawData(tmpData, PumpModel.MM522);
+            boolean didParse = record.parseFrom(tmpData, PumpModel.MM522);
+            if (!didParse) {
+                Log.e(TAG,String.format("attemptParseRecord: class %s (opcode 0x%02X) failed to parse at offset %d",record.getRecordTypeName(),data[offsetStart],offsetStart));
+            }
         }
         return record;
     }

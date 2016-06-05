@@ -44,6 +44,7 @@ public class PumpMessage {
             this.messageBody = MessageType.constructMessageBody(messageType, ByteUtil.substring(rxData, 5, rxData.length - 5));
         }
     }
+
     public byte[] getTxData() {
         byte[] rval = ByteUtil.concat(new byte[] {(byte)packetType.value},address);
         rval = ByteUtil.concat(rval,(byte)messageType.mtype);
@@ -63,6 +64,8 @@ public class PumpMessage {
         return true;
     }
 
-
+    public MessageBody getMessageBody() {
+        return messageBody;
+    }
 
 }

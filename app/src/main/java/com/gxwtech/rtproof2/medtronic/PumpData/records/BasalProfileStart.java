@@ -1,44 +1,26 @@
 package com.gxwtech.rtproof2.medtronic.PumpData.records;
 
-import android.util.Log;
-
 import com.gxwtech.rtproof2.medtronic.PumpModel;
 
-// todo: rewrite with new knowledge of basal profiles (see BasalProfile.java)
 public class BasalProfileStart extends TimeStampedRecord {
     private static final String TAG = "BasalProfileStart";
-    private int offset;
-    private float rate;
-    private int index;
+    private int offset = 0;
+    private double rate = 0.0;
+    private int profileIndex = 0;
 
     public BasalProfileStart() {
-        bodySize = 3;
-        calcSize();
-    }
-
-    public boolean collectRawData(byte[] data, PumpModel model) {
-        super.collectRawData(data, model);
-        decode(data);
-        return true;
-    }
-
-    public boolean decode(byte[] data) {
-        if (!super.decode(data)) {
-            return false;
-        }
-        int bodyOffset = headerSize + timestampSize;
-        offset = readUnsignedByte(data[bodyOffset]) * 1000 * 30 * 60;
-        if (model == PumpModel.MM523) {
-            rate = readUnsignedByte(data[bodyOffset + 1]) * 0.025f;
-        }
-        index = readUnsignedByte(data[bodyOffset + 2]);
-        //logRecord();
-        return true;
+        length = 10;
     }
 
     @Override
-    public void logRecord() {
-        Log.i(TAG, String.format("%s %s Offset: %d Rate: %.2f",
-                timeStamp.toString(), recordTypeName, offset, rate));
+    public boolean parseFrom(byte[] data, PumpModel model) {
+        if (!simpleParse(10,data,2)) {
+            return false;
+        }
+
+        profileIndex = asUINT8(data[1]);
+        offset = asUINT8(data[7]) * 30 * 1000 * 60;
+        rate = (double)(asUINT8(data[8])) / 40.0;
+        return true;
     }
 }

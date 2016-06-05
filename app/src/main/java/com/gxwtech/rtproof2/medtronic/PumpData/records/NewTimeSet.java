@@ -2,14 +2,13 @@ package com.gxwtech.rtproof2.medtronic.PumpData.records;
 
 import com.gxwtech.rtproof2.medtronic.PumpModel;
 
+// This event existed as 0x18 in Roundtrip and early Decocare,
+// but I don't see a corresponding event in RileyLink_ios.
 public class NewTimeSet extends TimeStampedRecord {
     public NewTimeSet() {
-        calcSize();
     }
-    public boolean collectRawData(byte[] data, PumpModel model) {
-        if (!super.collectRawData(data, model)) {
-            return false;
-        }
-        return decode(data);
+    @Override
+    public boolean parseFrom(byte[] data, PumpModel model) {
+        return false;
     }
 }

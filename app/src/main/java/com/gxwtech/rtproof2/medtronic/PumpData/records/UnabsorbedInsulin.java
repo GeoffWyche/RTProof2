@@ -3,17 +3,39 @@ package com.gxwtech.rtproof2.medtronic.PumpData.records;
 
 import com.gxwtech.rtproof2.medtronic.PumpModel;
 
-public class UnabsorbedInsulin extends VariableSizeBodyRecord {
+import java.util.ArrayList;
+
+public class UnabsorbedInsulin extends Record {
+
+    class UnabsorbedInsulinRecord {
+        double amount = 0.0;
+        int age = 0;
+        public UnabsorbedInsulinRecord(double amount, int age) {
+            this.amount = amount;
+            this.age = age;
+        }
+    }
+
+    ArrayList<UnabsorbedInsulinRecord> records = new ArrayList<>();
 
     public UnabsorbedInsulin() {
     }
 
-    public boolean collectRawData(byte[] data, PumpModel model) {
-        if (!super.collectRawData(data, model)) {
+    @Override
+    public boolean parseFrom(byte[] data, PumpModel model) {
+        length = asUINT8(data[1]);
+        if (length < 2) {
+            length = 2;
+        }
+        if (length > data.length) {
             return false;
         }
-        bodySize = readUnsignedByte(data[1]);
-        calcSize();
+        int numRecords = (asUINT8(data[1]) - 2) / 3;
+        for (int i=0; i<numRecords; i++) {
+            double amount = (double)(asUINT8(data[2 + (i * 3)])) / 40.0;
+            int age = asUINT8(data[3 + (i*3)]) + (((asUINT8(data[4 + (i*3)])) & 0b110000) << 4);
+            records.add(new UnabsorbedInsulinRecord(amount,age));
+        }
         return true;
     }
 }

@@ -22,7 +22,6 @@ import com.gxwtech.rtproof2.RileyLinkBLE.BLECommOperations.BLECommOperationResul
 import com.gxwtech.rtproof2.RileyLinkBLE.GattAttributes;
 import com.gxwtech.rtproof2.RileyLinkBLE.RadioPacket;
 import com.gxwtech.rtproof2.RileyLinkBLE.RileyLinkBLE;
-import com.gxwtech.rtproof2.medtronic.Messages.ButtonPressCarelinkMessageBody;
 import com.gxwtech.rtproof2.util.ByteUtil;
 
 import java.util.UUID;
@@ -72,15 +71,19 @@ public class MainActivity extends AppCompatActivity {
                             rfspy.startReader();
                             //testRileyLink();
                             pumpManager = new PumpManager(rfspy, new byte[]{0x51, (byte) 0x81, 0x63});
-                            //pumpManager.tunePump();
+                            pumpManager.tunePump();
                             rfspy.setBaseFrequency(916.65);
+
                             pumpManager.wakeup(6);
-                            pumpManager.getPumpModel();
+                            //pumpManager.getPumpModel();
+
                             //pumpManager.getPumpRTC();
                             //pumpManager.getPumpModel();
                             //pumpManager.pressButton(ButtonPressCarelinkMessageBody.BUTTON_UP);
                             //pumpManager.getPumpModel();
-                            pumpManager.getPumpHistory(0);
+                            //pumpManager.getPumpHistoryPage(0);
+                            pumpManager.getHistoryEventsSinceDate(null);
+                            //pumpManager.testPageDecode();
                             //pumpManager.hunt();
 
                             //testPumpManager();
@@ -165,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void testPumpManager() {
-        pumpManager.getPumpHistory(1);
+        pumpManager.getPumpHistoryPage(1);
     }
 
 
@@ -183,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
         pumpManager.tunePump();
 
 
-        pumpManager.getPumpHistory(1);
+        pumpManager.getPumpHistoryPage(1);
 
         /*
         // This operation reads from the CC1110 version

@@ -12,4 +12,10 @@ public enum PumpModel {
     MM515,
     MM522,
     MM523;
+    public static boolean isLargerFormat(PumpModel model) {
+        if (model == MM523) {
+            return true;
+        }
+        return false;
+    }
 }

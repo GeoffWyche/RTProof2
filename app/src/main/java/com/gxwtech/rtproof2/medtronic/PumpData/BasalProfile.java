@@ -39,7 +39,7 @@ public class BasalProfile {
         mRawData[1] = 0;
         mRawData[2] = 0x3f;
     }
-    // this readUnsignedByte should be combined with Record.readUnsignedByte, and placed in a new util class.
+    // this asUINT8 should be combined with Record.asUINT8, and placed in a new util class.
     protected static int readUnsignedByte(byte b) { return (b<0)?b+256:b; }
     public boolean setRawData(byte[] data) {
         if (data == null) {

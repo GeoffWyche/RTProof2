@@ -2,15 +2,15 @@ package com.gxwtech.rtproof2.medtronic;
 
 import android.util.Log;
 
+import com.gxwtech.rtproof2.medtronic.PumpData.records.BolusWizardBolusEstimatePumpEvent;
+import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalDurationPumpEvent;
 import com.gxwtech.rtproof2.util.HexDump;
 import com.gxwtech.rtproof2.medtronic.PumpData.HistoryReport;
 import com.gxwtech.rtproof2.medtronic.PumpData.Page;
 import com.gxwtech.rtproof2.medtronic.PumpData.TempBasalPair;
-import com.gxwtech.rtproof2.medtronic.PumpData.records.BolusWizard;
 import com.gxwtech.rtproof2.medtronic.PumpData.records.Record;
 import com.gxwtech.rtproof2.medtronic.PumpData.records.RecordTypeEnum;
-import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalDuration;
-import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalRate;
+import com.gxwtech.rtproof2.medtronic.PumpData.records.TempBasalRatePumpEvent;
 
 
 /**
@@ -50,28 +50,28 @@ public class ReadHistoryCommand extends MedtronicCommand {
                     Log.w(TAG, String.format("SEQ: %d", seq));
                 }
             }
-            index = index + r.getSize();
+            index = index + r.getLength();
             r = checkForRecord(data,index);
         }
     }
 
     private static Record checkForRecord(byte[] data, int index) {
         Page page = new Page();
-        Record record = page.attemptParseRecord(data,index); // CalBgForPh
+        Record record = page.attemptParseRecord(data,index); // CalBgForPhPumpEvent
         if (record!=null) {
             if (DEBUG_READHISTORYCOMMAND) {
                 Log.d(TAG, String.format("Maybe found record %s at index %d, size %d",
-                        record.getClass().getSimpleName(), index, record.getSize()));
+                        record.getClass().getSimpleName(), index, record.getLength()));
             }
 
             int sublength = data.length - index;
             byte[] subset = new byte[sublength];
             System.arraycopy(data,index,subset,0,sublength);
-            boolean correct = record.collectRawData(subset,PumpModel.MM522);
+            boolean correct = record.parseFrom(subset,PumpModel.MM522);
             if (correct) {
                 if (DEBUG_READHISTORYCOMMAND) {
                     Log.v(TAG, String.format("FOUND RECORD %s at index %d, size %d",
-                            record.getClass().getSimpleName(), index, record.getSize()));
+                            record.getClass().getSimpleName(), index, record.getLength()));
                 }
             } else {
                 /*
@@ -103,54 +103,54 @@ public class ReadHistoryCommand extends MedtronicCommand {
                 // Here we select the records of the page which will go into the report
                 TempBasalEvent partialTempBasalEvent = null;
                 for (Record r : page.mRecordList) {
-                    if (r.getRecordOp() == RecordTypeEnum.RECORD_TYPE_BOLUSWIZARD.opcode()) {
-                        mHistoryReport.addBolusWizardEvent((BolusWizard) r);
+                    if (r.getRecordOp() == RecordTypeEnum.RECORD_TYPE_BolusWizardBolusEstimate.opcode()) {
+                        mHistoryReport.addBolusWizardEvent((BolusWizardBolusEstimatePumpEvent) r);
                         if (DEBUG_READHISTORYCOMMAND) {
-                            Log.d(TAG, "Adding BolusWizard event to HistoryReport");
+                            Log.d(TAG, "Adding BolusWizardBolusEstimatePumpEvent event to HistoryReport");
                         }
                     }
                     /* temp basal events are divided into two sub-events, which we have to re-compose.
-                     * One half is a TempBasalRate, and the other half is TempBasalDuration
+                     * One half is a TempBasalRatePumpEvent, and the other half is TempBasalDurationPumpEvent
                      * We re-compose them into a TempBasalEvent here.
                      */
                     else if (r.getRecordOp() == RecordTypeEnum.RECORD_TYPE_TEMPBASALRATE.opcode()) {
                         // need to find corresponding duration event
-                        TempBasalRate rateEvent = (TempBasalRate) r;
+                        TempBasalRatePumpEvent rateEvent = (TempBasalRatePumpEvent) r;
                         if (partialTempBasalEvent == null) {
-                            partialTempBasalEvent = new TempBasalEvent(rateEvent.getTimeStamp(),
-                                    new TempBasalPair(rateEvent.basalRate,0));
+                            partialTempBasalEvent = new TempBasalEvent(rateEvent.getTimestamp().getLocalDateTime(),
+                                    new TempBasalPair(rateEvent.getBasalRate(),rateEvent.isPercent(),0));
                         } else {
-                            if (partialTempBasalEvent.mTimestamp.equals(rateEvent.getTimeStamp())) {
+                            if (partialTempBasalEvent.mTimestamp.equals(rateEvent.getTimestamp())) {
                                 // found matching rate/duration
-                                partialTempBasalEvent.mBasalPair.mInsulinRate = rateEvent.basalRate;
+                                partialTempBasalEvent.mBasalPair.setInsulinRate(rateEvent.getBasalRate());
                                 // and record the full event
                                 mHistoryReport.addTempBasalEvent(partialTempBasalEvent);
                                 partialTempBasalEvent = null;
                             } else {
-                                Log.e(TAG,"TempBasalDuration/TempBasalRate timestamp mismatch!");
+                                Log.e(TAG,"TempBasalDurationPumpEvent/TempBasalRatePumpEvent timestamp mismatch!");
                                 // try to recover
-                                partialTempBasalEvent = new TempBasalEvent(rateEvent.getTimeStamp(),
-                                        new TempBasalPair(rateEvent.basalRate,0));
+                                partialTempBasalEvent = new TempBasalEvent(rateEvent.getTimestamp().getLocalDateTime(),
+                                        new TempBasalPair(rateEvent.getBasalRate(),rateEvent.isPercent(),0));
                             }
                         }
                     } else if (r.getRecordOp() == RecordTypeEnum.RECORD_TYPE_TEMPBASALDURATION.opcode()) {
                         // need to find corresponding rate event
-                        TempBasalDuration durationEvent = (TempBasalDuration) r;
+                        TempBasalDurationPumpEvent durationEvent = (TempBasalDurationPumpEvent) r;
                         if (partialTempBasalEvent == null) {
-                            partialTempBasalEvent = new TempBasalEvent(durationEvent.getTimeStamp(),
-                                    new TempBasalPair(0,durationEvent.durationMinutes));
+                            partialTempBasalEvent = new TempBasalEvent(durationEvent.getTimestamp().getLocalDateTime(),
+                                    new TempBasalPair(0,false,durationEvent.getDurationMinutes()));
                         } else {
-                            if (partialTempBasalEvent.mTimestamp.equals(durationEvent.getTimeStamp())) {
+                            if (partialTempBasalEvent.mTimestamp.equals(durationEvent.getTimestamp())) {
                                 // found matching event, update partial
-                                partialTempBasalEvent.mBasalPair.mDurationMinutes = durationEvent.durationMinutes;
+                                partialTempBasalEvent.mBasalPair.setDurationMinutes(durationEvent.getDurationMinutes());
                                 // record finished event
                                 mHistoryReport.addTempBasalEvent(partialTempBasalEvent);
                                 partialTempBasalEvent = null;
                             } else {
-                                Log.e(TAG,"TempBasalRate/TempBasalDuration timestamp mismatch!");
+                                Log.e(TAG,"TempBasalRatePumpEvent/TempBasalDurationPumpEvent timestamp mismatch!");
                                 // try to recover
-                                partialTempBasalEvent = new TempBasalEvent(durationEvent.getTimeStamp(),
-                                        new TempBasalPair(0,durationEvent.durationMinutes));
+                                partialTempBasalEvent = new TempBasalEvent(durationEvent.getTimestamp().getLocalDateTime(),
+                                        new TempBasalPair(0,false,durationEvent.getDurationMinutes()));
                             }
                         }
                     }
@@ -332,12 +332,12 @@ public class ReadHistoryCommand extends MedtronicCommand {
         checkForRecordSequence(sampleHistory,112);
         checkForRecordSequence(sampleHistory,115);
         checkForRecordSequence(sampleHistory,119);
-        checkForRecordSequence(sampleHistory,121); // CalBgForPh
-        checkForRecordSequence(sampleHistory,128); // BolusWizard
-        checkForRecordSequence(sampleHistory, 148); // Bolus
-        checkForRecordSequence(sampleHistory,502); // CalBgForPh
-        checkForRecordSequence(sampleHistory,509); // BolusWizard
-        checkForRecordSequence(sampleHistory,529); // Bolus
+        checkForRecordSequence(sampleHistory,121); // CalBgForPhPumpEvent
+        checkForRecordSequence(sampleHistory,128); // BolusWizardBolusEstimatePumpEvent
+        checkForRecordSequence(sampleHistory, 148); // BolusNormalPumpEvent
+        checkForRecordSequence(sampleHistory,502); // CalBgForPhPumpEvent
+        checkForRecordSequence(sampleHistory,509); // BolusWizardBolusEstimatePumpEvent
+        checkForRecordSequence(sampleHistory,529); // BolusNormalPumpEvent
     }
 
 
@@ -347,36 +347,36 @@ public class ReadHistoryCommand extends MedtronicCommand {
 Cribbed from:
 https://github.com/nightscout/android-uploader/tree/minimed/core/src/main/java/com/nightscout/core/drivers/Medtronic
 
-        recordMap.put((byte) 0x01, Bolus.class);
-        recordMap.put((byte) 0x03, Prime.class);
-        recordMap.put((byte) 0x06, NoDeliveryAlarm.class);
+        recordMap.put((byte) 0x01, BolusNormalPumpEvent.class);
+        recordMap.put((byte) 0x03, PrimePumpEvent.class);
+        recordMap.put((byte) 0x06, PumpAlarmPumpEvent.class);
         recordMap.put((byte) 0x07, EndResultsTotals.class);
-        recordMap.put((byte) 0x08, ChangeBasalProfile.class);
-        recordMap.put((byte) 0x09, ChangeBasalProfile.class);
-        recordMap.put((byte) 0x0A, CalBgForPh.class);
-        recordMap.put((byte) 0x0c, ClearAlarm.class);
+        recordMap.put((byte) 0x08, ChangeBasalProfilePumpEvent.class);
+        recordMap.put((byte) 0x09, ChangeBasalProfilePumpEvent.class);
+        recordMap.put((byte) 0x0A, CalBgForPhPumpEvent.class);
+        recordMap.put((byte) 0x0c, ClearAlarmPumpEvent.class);
         recordMap.put((byte) 0x14, SelectBasalProfile.class);
-        recordMap.put((byte) 0x16, TempBasalDuration.class);
-        recordMap.put((byte) 0x17, ChangeTime.class);
+        recordMap.put((byte) 0x16, TempBasalDurationPumpEvent.class);
+        recordMap.put((byte) 0x17, ChangeTimePumpEvent.class);
         recordMap.put((byte) 0x18, NewTimeSet.class);
-        recordMap.put((byte) 0x19, LowBattery.class);
-        recordMap.put((byte) 0x1A, BatteryActivity.class);
-        recordMap.put((byte) 0x1E, PumpSuspended.class);
-        recordMap.put((byte) 0x1F, PumpResumed.class);
-        recordMap.put((byte) 0x21, Rewound.class);
-        recordMap.put((byte) 0x26, ToggleRemote.class);
-        recordMap.put((byte) 0x27, ChangeRemoteId.class);
-        recordMap.put((byte) 0x33, TempBasalRate.class);
-        recordMap.put((byte) 0x34, LowReservoir.class);
-        recordMap.put((byte) 0x3f, Ian3F.class);
-        recordMap.put((byte) 0x5a, BolusWizardChange.class);
+        recordMap.put((byte) 0x19, JournalEntryPumpLowBatteryPumpEvent.class);
+        recordMap.put((byte) 0x1A, BatteryPumpEvent.class);
+        recordMap.put((byte) 0x1E, SuspendPumpEvent.class);
+        recordMap.put((byte) 0x1F, ResumePumpEvent.class);
+        recordMap.put((byte) 0x21, RewindPumpEvent.class);
+        recordMap.put((byte) 0x26, EnableDisableRemotePumpEvent.class);
+        recordMap.put((byte) 0x27, ChangeOtherDeviceIDPumpEvent.class);
+        recordMap.put((byte) 0x33, TempBasalRatePumpEvent.class);
+        recordMap.put((byte) 0x34, JournalEntryPumpLowReservoirPumpEvent.class);
+        recordMap.put((byte) 0x3f, BGReceivedPumpEvent.class);
+        recordMap.put((byte) 0x5a, ChangeBolusWizardSetupPumpEvent.class);
         recordMap.put((byte) 0x5b, BolusWizard.class);
         recordMap.put((byte) 0x5c, UnabsorbedInsulin.class);
         recordMap.put((byte) 0x6c, Old6c.class);
-        recordMap.put((byte) 0x6d, ResultTotals.class);
-        recordMap.put((byte) 0x6e, Sara6E.class);
-        recordMap.put((byte) 0x63, ChangeUtility.class);
-        recordMap.put((byte) 0x64, ChangeTimeDisplay.class);
+        recordMap.put((byte) 0x6d, ResultDailyTotalPumpEvent.class);
+        recordMap.put((byte) 0x6e, Sara6EPumpEvent.class);
+        recordMap.put((byte) 0x63, ChangeAlarmNotifyModePumpEvent.class);
+        recordMap.put((byte) 0x64, ChangeTimeFormatPumpEvent.class);
         recordMap.put((byte) 0x7b, BasalProfileStart.class);
  */
 

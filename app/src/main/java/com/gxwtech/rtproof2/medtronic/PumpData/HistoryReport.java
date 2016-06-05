@@ -1,7 +1,7 @@
 package com.gxwtech.rtproof2.medtronic.PumpData;
 
 
-import com.gxwtech.rtproof2.medtronic.PumpData.records.BolusWizard;
+import com.gxwtech.rtproof2.medtronic.PumpData.records.BolusWizardBolusEstimatePumpEvent;
 import com.gxwtech.rtproof2.medtronic.TempBasalEvent;
 
 import java.util.ArrayList;
@@ -14,14 +14,14 @@ import java.util.ArrayList;
  *
  */
 public class HistoryReport {
-    public ArrayList<BolusWizard> mBolusWizardEvents;
+    public ArrayList<BolusWizardBolusEstimatePumpEvent> mBolusWizardEvents;
     //public ArrayList<TempBasalEvent> mBasalEvents;
     public ArrayList<TempBasalEvent> mBasalEvents;
     public HistoryReport() {
         mBolusWizardEvents = new ArrayList<>();
         mBasalEvents = new ArrayList<>();
     }
-    public void addBolusWizardEvent(BolusWizard event) {
+    public void addBolusWizardEvent(BolusWizardBolusEstimatePumpEvent event) {
         mBolusWizardEvents.add(event);
     }
     public void addTempBasalEvent(TempBasalEvent event)

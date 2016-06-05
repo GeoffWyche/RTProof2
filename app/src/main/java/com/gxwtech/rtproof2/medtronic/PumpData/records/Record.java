@@ -3,53 +3,43 @@ package com.gxwtech.rtproof2.medtronic.PumpData.records;
 import android.util.Log;
 
 import com.gxwtech.rtproof2.medtronic.PumpModel;
+import com.gxwtech.rtproof2.medtronic.PumpTimeStamp;
+
+import org.joda.time.DateTime;
 
 
 abstract public class Record {
     private static final String TAG = "Record";
     protected byte recordOp;
-    protected int totalSize = -1;
-    protected byte timestampSize = 0; // not all records have time stamps
-    protected int bodySize = 0; // should be overridden in derived.
-    protected byte headerSize = 2; // minimum?
-    // first byte is record type, second byte (of header) is often the only parameter
-    // sometimes followed by a date (see TimeStampedRecord), which is sometimes followed by more data
-    protected PumpModel model = PumpModel.UNSET;
+    protected int length;
+
     protected String recordTypeName = this.getClass().getSimpleName();
+    public String getRecordTypeName() {return recordTypeName;}
 
     public Record() {
+        length = 1;
     }
 
-    public boolean collectRawData(byte[] data, PumpModel model) {
+    public boolean parseFrom(byte[] data, PumpModel model) {
+        if (data == null) {
+            return false;
+        }
+        if (data.length < 1) {
+            return false;
+        }
         recordOp = data[0];
-        this.model = model;
         return true;
     }
 
-    // size is invalid (-1) for some classes, until they
-    // have read their data, as they are variable length
-    public int getSize() {
-        return totalSize;
+    public PumpTimeStamp getTimestamp() {
+        return new PumpTimeStamp();
     }
 
-    // When a class can calculate its size, do so.
-    // For some, this is a constant,
-    // for others, it can be done when the model is known
-    // for still others, the entire record must be parsed.
-    protected void calcSize() {
-        totalSize = headerSize + timestampSize + bodySize;
-    }
+    public int getLength() { return length; }
 
     public byte getRecordOp() {
         return recordOp;
     }
 
-    public void logRecord() {
-        Log.i(TAG, String.format("Unparsed %s, size = %d",recordTypeName,getSize()));
-    }
-
-    protected boolean decode(byte[] data) {
-        return true;
-    }
-    protected static int readUnsignedByte(byte b) { return (b<0)?b+256:b;}
+    protected static int asUINT8(byte b) { return (b<0)?b+256:b;}
 }
